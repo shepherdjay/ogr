@@ -51,7 +51,7 @@ class Reaction(OgrAbstractClass):
     def __init__(self, raw_reaction: Any) -> None:
         self._raw_reaction = raw_reaction
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Reaction(raw_reaction={self._raw_reaction})"
 
     def delete(self) -> None:

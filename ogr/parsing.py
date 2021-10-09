@@ -96,7 +96,7 @@ class RepoUrl:
 
         return urlparse(potential_url)
 
-    def _set_hostname_and_scheme(self, parsed_url: ParseResult):
+    def _set_hostname_and_scheme(self, parsed_url: ParseResult) -> None:
         self.hostname = parsed_url.hostname
         self.scheme = parsed_url.scheme
 
