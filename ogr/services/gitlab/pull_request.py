@@ -1,26 +1,9 @@
-# MIT License
-#
-# Copyright (c) 2018-2019 Red Hat, Inc.
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright Contributors to the Packit project.
+# SPDX-License-Identifier: MIT
 
 import datetime
+
+import gitlab
 import requests
 from typing import Dict, List, Optional
 
@@ -28,7 +11,7 @@ from gitlab.v4.objects import MergeRequest as _GitlabMergeRequest
 from gitlab.exceptions import GitlabGetError
 
 from ogr.abstract import PullRequest, PRComment, PRStatus, MergeCommitStatus
-from ogr.exceptions import GitlabAPIException
+from ogr.exceptions import GitlabAPIException, OgrNetworkError
 from ogr.services import gitlab as ogr_gitlab
 from ogr.services.base import BasePullRequest
 from ogr.services.gitlab.comments import GitlabPRComment
@@ -113,7 +96,8 @@ class GitlabPullRequest(BasePullRequest):
         response = requests.get(f"{self.url}.patch")
 
         if not response.ok:
-            raise GitlabAPIException(
+            cls = OgrNetworkError if response.status_code >= 500 else GitlabAPIException
+            raise cls(
                 f"Couldn't get patch from {self.url}.patch because {response.reason}."
             )
 
@@ -217,12 +201,18 @@ class GitlabPullRequest(BasePullRequest):
         fork_username: str, project: "ogr_gitlab.GitlabProject"
     ) -> "ogr_gitlab.GitlabProject":
         """
-        Returns project of a requested user. Internal method, in case the fork
+        Returns forked project of a requested user. Internal method, in case the fork
         doesn't exist, raises GitlabAPIException.
 
-        :param fork_username: username of a user that owns requested fork
-        :param project: project to search forks of
-        :return: requested fork
+        Args:
+            fork_username: Username of a user that owns requested fork.
+            project: Project to search forks of.
+
+        Returns:
+            Requested fork.
+
+        Raises:
+            GitlabAPIException, in case the fork doesn't exist.
         """
         forks = list(
             filter(
@@ -236,7 +226,10 @@ class GitlabPullRequest(BasePullRequest):
 
     @staticmethod
     def get(project: "ogr_gitlab.GitlabProject", pr_id: int) -> "PullRequest":
-        mr = project.gitlab_repo.mergerequests.get(pr_id)
+        try:
+            mr = project.gitlab_repo.mergerequests.get(pr_id)
+        except gitlab.GitlabGetError as ex:
+            raise GitlabAPIException(f"No PR with id {pr_id} found") from ex
         return GitlabPullRequest(mr, project)
 
     @staticmethod

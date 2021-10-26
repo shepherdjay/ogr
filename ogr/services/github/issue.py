@@ -1,28 +1,10 @@
-# MIT License
-#
-# Copyright (c) 2018-2019 Red Hat, Inc.
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright Contributors to the Packit project.
+# SPDX-License-Identifier: MIT
 
 import datetime
 from typing import List, Optional, Dict, Union
 
+import github
 from github import UnknownObjectException
 from github.Issue import Issue as _GithubIssue
 
@@ -112,7 +94,10 @@ class GithubIssue(BaseIssue):
 
     @staticmethod
     def get(project: "ogr_github.GithubProject", issue_id: int) -> "Issue":
-        issue = project.github_repo.get_issue(number=issue_id)
+        try:
+            issue = project.github_repo.get_issue(number=issue_id)
+        except github.UnknownObjectException as ex:
+            raise GithubAPIException(f"No issue with id {issue_id} found") from ex
         return GithubIssue(issue, project)
 
     @staticmethod
@@ -166,7 +151,10 @@ class GithubIssue(BaseIssue):
             self._raw_issue.add_to_labels(label)
 
     def add_assignee(self, *assignees: str) -> None:
-        self._raw_issue.edit(assignees=list(assignees))
+        try:
+            self._raw_issue.edit(assignees=list(assignees))
+        except github.GithubException as ex:
+            raise GithubAPIException("Failed to assign issue, unknown user") from ex
 
     def get_comment(self, comment_id: int) -> IssueComment:
         return GithubIssueComment(self._raw_issue.get_comment(comment_id))

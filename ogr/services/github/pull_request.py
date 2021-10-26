@@ -1,27 +1,10 @@
-# MIT License
-#
-# Copyright (c) 2018-2019 Red Hat, Inc.
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright Contributors to the Packit project.
+# SPDX-License-Identifier: MIT
 
 import datetime
 import logging
+
+import github
 import requests
 from typing import Optional, List, Union
 
@@ -33,7 +16,7 @@ from github.IssueComment import IssueComment as _GithubIssueComment
 from github.PullRequestComment import PullRequestComment as _GithubPullRequestComment
 
 from ogr.abstract import PRComment, PRStatus, PullRequest, MergeCommitStatus
-from ogr.exceptions import GithubAPIException
+from ogr.exceptions import GithubAPIException, OgrNetworkError
 from ogr.services import github as ogr_github
 from ogr.services.base import BasePullRequest
 from ogr.services.github.comments import GithubPRComment
@@ -107,7 +90,8 @@ class GithubPullRequest(BasePullRequest):
         response = requests.get(self._raw_pr.patch_url)
 
         if not response.ok:
-            raise GithubAPIException(
+            cls = OgrNetworkError if response.status_code >= 500 else GithubAPIException
+            raise cls(
                 f"Couldn't get patch from {self._raw_pr.patch_url} because {response.reason}."
             )
 
@@ -191,7 +175,10 @@ class GithubPullRequest(BasePullRequest):
 
     @staticmethod
     def get(project: "ogr_github.GithubProject", pr_id: int) -> "PullRequest":
-        pr = project.github_repo.get_pull(number=pr_id)
+        try:
+            pr = project.github_repo.get_pull(number=pr_id)
+        except github.UnknownObjectException as ex:
+            raise GithubAPIException(f"No pull request with id {pr_id} found") from ex
         return GithubPullRequest(pr, project)
 
     @staticmethod
@@ -223,7 +210,7 @@ class GithubPullRequest(BasePullRequest):
             logger.info(f"PR updated: {self._raw_pr.url}")
             return self
         except Exception as ex:
-            raise GithubAPIException("there was an error while updating the PR", ex)
+            raise GithubAPIException("there was an error while updating the PR") from ex
 
     def _get_all_comments(self) -> List[PRComment]:
         return [

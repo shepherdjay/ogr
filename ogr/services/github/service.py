@@ -1,24 +1,5 @@
-# MIT License
-#
-# Copyright (c) 2018-2019 Red Hat, Inc.
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# Copyright Contributors to the Packit project.
+# SPDX-License-Identifier: MIT
 
 import logging
 from typing import Optional, Type, Union, List
@@ -182,15 +163,18 @@ class GithubService(BaseGitService):
         if namespace:
             try:
                 owner = self.github.get_organization(namespace)
-            except UnknownObjectException:
-                raise GithubAPIException(f"Group {namespace} not found.")
+            except UnknownObjectException as ex:
+                raise GithubAPIException(f"Group {namespace} not found.") from ex
         else:
             owner = self.github.get_user()
 
-        new_repo = owner.create_repo(
-            name=repo,
-            description=description if description else github.GithubObject.NotSet,
-        )
+        try:
+            new_repo = owner.create_repo(
+                name=repo,
+                description=description if description else github.GithubObject.NotSet,
+            )
+        except github.GithubException as ex:
+            raise GithubAPIException("Project creation failed") from ex
         return GithubProject(
             repo=repo,
             namespace=namespace or owner.login,
